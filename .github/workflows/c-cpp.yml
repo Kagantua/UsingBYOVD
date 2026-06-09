@@ -1,0 +1,63 @@
+# .github/workflows/build_windows_x64.yml
+name: Build Windows x64 Executable
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: windows-latest  # 使用 Windows 最新运行器
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'  # 如果项目包含子模块，一并拉取
+
+    # 设置构建环境（MSVC 工具链）
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v1.3
+
+    # 恢复 NuGet 包（如果项目需要）
+    - name: Restore NuGet packages
+      run: nuget restore UsingBYOVD.sln
+
+    # 编译解决方案：Release 配置，x64 平台
+    - name: Build Solution (x64 Release)
+      run: msbuild UsingBYOVD.sln -m -p:Configuration=Release -p:Platform=x64 -p:Verbosity=minimal
+
+    # 查找编译出的 .exe 文件（预期输出路径，可根据实际项目调整）
+    - name: Locate Executable
+      id: locate_exe
+      run: |
+        # 常见输出路径：x64\Release\ 或 Release\
+        $exe_path = Get-ChildItem -Recurse -Filter "*.exe" | Where-Object { $_.DirectoryName -like "*Release*" -and $_.Name -match "DriverLoader|UsingBYOVD" } | Select-Object -First 1
+        if ($exe_path) {
+          echo "EXE_PATH=$($exe_path.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "EXE_NAME=$($exe_path.Name)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        } else {
+          Write-Host "::error::未找到编译生成的 .exe 文件"
+          exit 1
+        }
+
+    # 上传 EXE 作为构建工件（可在 Actions 页面下载）
+    - name: Upload Executable Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: UsingBYOVD-x64-Release
+        path: ${{ env.EXE_PATH }}
+        retention-days: 7  # 工件保留天数
+
+    # （可选）同时上传所有相关文件（如驱动、配置文件等）
+    - name: Upload Additional Build Outputs
+      uses: actions/upload-artifact@v4
+      with:
+        name: Full-Build-Output
+        path: |
+          x64\Release\
+          !**/*.pdb  # 排除调试符号文件以减小体积
+        retention-days: 7

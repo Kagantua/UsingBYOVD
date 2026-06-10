@@ -103,7 +103,7 @@ auto DriverWorker::Kill(ULONG Pid) ->BOOLEAN
 
 	if (Pid > 4)
 	{
-		LOG("Kill pid = ") << Pid << std::endl;;
+		LOG("Kill pid = ") << Pid << std::endl;
 		bResult = g_ProcessCtr->KillProcess(Pid);
 
 	}
